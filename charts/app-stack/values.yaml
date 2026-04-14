@@ -1,0 +1,33 @@
+namespace: todo-app
+
+image:
+  registry: acr2604131655103.azurecr.io
+  tag: latest
+
+frontend:
+  repository: frontend
+  port: 80
+  replicas: 1
+
+api:
+  repository: api
+  port: 3000
+  replicas: 1
+
+worker:
+  repository: worker
+  replicas: 1
+
+postgres:
+  database: todos
+  user: todos
+  password: T0d0App#2604
+  storage: 1Gi
+
+redis:
+  port: 6379
+
+ingress:
+  enabled: true
+  host: ""   # leave empty to use IP; set to your FQDN if available
+  className: webapprouting.kubernetes.azure.com

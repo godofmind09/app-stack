@@ -1,0 +1,113 @@
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  dockerRegistryServiceConnection: sc-acr
+  azureServiceConnection: sc-azure-rm
+  acrLoginServer: acr2604131655103.azurecr.io
+  aksResourceGroup: rg-aks-2604131655
+  aksClusterName: aks-2604131655
+  namespace: todo-app
+  frontendRepo: frontend
+  apiRepo: api
+  workerRepo: worker
+  tag: $(Build.BuildId)
+
+stages:
+  - stage: Build
+    displayName: Build & Push Images
+    jobs:
+      - job: BuildImages
+        displayName: Docker Build & Push
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: Docker@2
+            displayName: Build & Push frontend
+            inputs:
+              command: buildAndPush
+              containerRegistry: $(dockerRegistryServiceConnection)
+              repository: $(frontendRepo)
+              dockerfile: frontend/Dockerfile
+              buildContext: frontend
+              tags: |
+                $(tag)
+                latest
+
+          - task: Docker@2
+            displayName: Build & Push api
+            inputs:
+              command: buildAndPush
+              containerRegistry: $(dockerRegistryServiceConnection)
+              repository: $(apiRepo)
+              dockerfile: api/Dockerfile
+              buildContext: api
+              tags: |
+                $(tag)
+                latest
+
+          - task: Docker@2
+            displayName: Build & Push worker
+            inputs:
+              command: buildAndPush
+              containerRegistry: $(dockerRegistryServiceConnection)
+              repository: $(workerRepo)
+              dockerfile: worker/Dockerfile
+              buildContext: worker
+              tags: |
+                $(tag)
+                latest
+
+  - stage: Deploy
+    displayName: Deploy to AKS
+    dependsOn: Build
+    jobs:
+      - job: HelmDeploy
+        displayName: Helm Upgrade
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: Get AKS credentials
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group $(aksResourceGroup) \
+                  --name $(aksClusterName) \
+                  --overwrite-existing
+
+          - task: AzureCLI@2
+            displayName: Helm upgrade --install
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                helm upgrade --install app-stack charts/app-stack \
+                  --namespace $(namespace) \
+                  --create-namespace \
+                  --set image.registry=$(acrLoginServer) \
+                  --set image.tag=$(tag) \
+                  --set frontend.repository=$(frontendRepo) \
+                  --set api.repository=$(apiRepo) \
+                  --set worker.repository=$(workerRepo) \
+                  --wait --timeout 5m
+
+          - task: AzureCLI@2
+            displayName: Verify deployment
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "=== Pods ==="
+                kubectl get pods -n $(namespace)
+                echo "=== Services ==="
+                kubectl get svc -n $(namespace)
+                echo "=== Ingress ==="
+                kubectl get ingress -n $(namespace)
