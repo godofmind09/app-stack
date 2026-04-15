@@ -23,17 +23,6 @@ app-stack/
   azure-pipelines.yml  CI/CD pipeline
 ```
 
-## Placeholders to Replace Before Use
-
-| Placeholder | Where | Description |
-|---|---|---|
-| ~~`YOUR_ACR_NAME.azurecr.io`~~ | `acr2604131655103.azurecr.io` | ✅ Done |
-| ~~`YOUR_RESOURCE_GROUP`~~ | `rg-aks-2604131655` | ✅ Done |
-| ~~`YOUR_AKS_NAME`~~ | `aks-2604131655` | ✅ Done |
-| ~~`sc-acr`~~ | `sc-acr` | ✅ Done |
-| ~~`sc-azure-rm`~~ | `sc-azure-rm` | ✅ Done |
-| ~~`changeme`~~ | `T0d0App#2604` | ✅ Done |
-
 ## Running the Pipeline
 
 1. Push this repo to your Azure DevOps repository.
