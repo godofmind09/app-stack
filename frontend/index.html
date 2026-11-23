@@ -35,14 +35,21 @@
         const res = await fetch(API);
         if (!res.ok) throw new Error(res.statusText);
         const todos = await res.json();
-        document.getElementById('list').innerHTML = todos.map(t => `
-          <tr>
-            <td>${t.id}</td>
-            <td>${t.text}</td>
-            <td class="${t.processed ? 'done' : 'pending'}">${t.processed ? 'Processed' : 'Pending'}</td>
-            <td>${new Date(t.created_at).toLocaleString()}</td>
-            <td>${t.processed_at ? new Date(t.processed_at).toLocaleString() : '-'}</td>
-          </tr>`).join('');
+        const rows = document.createDocumentFragment();
+        for (const todo of todos) {
+          const row = document.createElement('tr');
+          const values = [
+            todo.id,
+            todo.text,
+            todo.processed ? 'Processed' : 'Pending',
+            new Date(todo.created_at).toLocaleString(),
+            todo.processed_at ? new Date(todo.processed_at).toLocaleString() : '-',
+          ];
+          for (const value of values) row.insertCell().textContent = value;
+          row.cells[2].className = todo.processed ? 'done' : 'pending';
+          rows.appendChild(row);
+        }
+        document.getElementById('list').replaceChildren(rows);
         document.getElementById('error').textContent = '';
       } catch (e) {
         document.getElementById('error').textContent = 'Failed to load todos: ' + e.message;

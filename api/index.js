@@ -4,6 +4,7 @@ const { Queue } = require('bullmq');
 
 const app = express();
 app.use(express.json());
+const port = Number(process.env.PORT || 3000);
 
 const pool = new Pool({
   host: process.env.PGHOST,
@@ -12,6 +13,7 @@ const pool = new Pool({
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
 });
+pool.on('error', error => console.error('PostgreSQL connection error:', error.message));
 
 const queue = new Queue('todo-events', {
   connection: { host: process.env.REDIS_HOST, port: Number(process.env.REDIS_PORT) || 6379 }
@@ -41,21 +43,41 @@ async function initDb(retries = 10) {
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
-app.get('/api/todos', async (_, res) => {
-  const { rows } = await pool.query('SELECT * FROM todos ORDER BY id DESC');
-  res.json(rows);
+app.get('/api/todos', async (_, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM todos ORDER BY id DESC');
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.post('/api/todos', async (req, res) => {
-  const { text } = req.body;
+app.post('/api/todos', async (req, res, next) => {
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
   if (!text) return res.status(400).json({ error: 'text required' });
-  const { rows } = await pool.query(
-    'INSERT INTO todos (text) VALUES ($1) RETURNING *', [text]
-  );
-  await queue.add('process', { todoId: rows[0].id });
-  res.status(201).json(rows[0]);
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO todos (text) VALUES ($1) RETURNING *', [text]
+    );
+    await queue.add('process', { todoId: rows[0].id });
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.use((error, _req, res, next) => {
+  if (res.headersSent) return next(error);
+  if (error.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'invalid JSON' });
+  }
+  if (error.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'request too large' });
+  }
+  console.error('Todo request failed:', error.message);
+  res.status(500).json({ error: 'could not process the todo request' });
 });
 
 initDb().then(() => {
-  app.listen(3000, () => console.log('API listening on :3000'));
+  app.listen(port, () => console.log(`API listening on :${port}`));
 }).catch(e => { console.error(e); process.exit(1); });

@@ -8,6 +8,7 @@ const pool = new Pool({
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
 });
+pool.on('error', error => console.error('PostgreSQL connection error:', error.message));
 
 const worker = new Worker('todo-events', async job => {
   const { todoId } = job.data;
